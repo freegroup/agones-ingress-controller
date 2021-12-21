@@ -1,8 +1,9 @@
 package reconcilers
 
 import (
-	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
 	"context"
+
+	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
 	"github.com/Octops/gameserver-ingress-controller/internal/runtime"
 	"github.com/Octops/gameserver-ingress-controller/pkg/gameserver"
 	"github.com/pkg/errors"
@@ -31,11 +32,22 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, gs *agonesv1.GameServ
 		if !k8serrors.IsNotFound(err) {
 			return &networkingv1.Ingress{}, errors.Wrapf(err, "error retrieving Ingress %s from namespace %s", gs.Name, gs.Namespace)
 		}
-
 		return r.reconcileNotFound(ctx, gs)
 	}
 
-	//TODO: Validate if details still match the GS info
+	// synchronize the ApiKey annotations to the already existing ingress
+	//
+	err = WithApiKeyAnnotation()(gs, ingress)
+	if err != nil {
+		return nil, err
+	}
+
+	ingress, err = r.Client.NetworkingV1().Ingresses(gs.Namespace).Update(ctx, ingress, metav1.UpdateOptions{})
+	if err != nil {
+		r.recorder.RecordFailed(gs, IngressKind, err)
+		return nil, errors.Wrapf(err, "failed to update ingress %s for gameserver %s", ingress.Name, gs.Name)
+	}
+
 	return ingress, nil
 }
 
@@ -46,6 +58,7 @@ func (r *IngressReconciler) reconcileNotFound(ctx context.Context, gs *agonesv1.
 	issuer := gameserver.GetTLSCertIssuer(gs)
 
 	opts := []IngressOption{
+		WithApiKeyAnnotation(),
 		WithCustomAnnotations(),
 		WithIngressRule(mode),
 		WithTLS(mode),

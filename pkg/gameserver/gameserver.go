@@ -17,6 +17,7 @@ const (
 	OctopsAnnotationsTLSSecretName = "octops.io/tls-secret-name"
 	OctopsAnnotationIssuerName     = "octops.io/issuer-tls-name"
 	OctopsAnnotationCustomPrefix   = "octops-"
+	AgonesAnnotationCustomPrefix   = "agones.dev/sdk-"
 
 	CertManagerAnnotationIssuer = "cert-manager.io/issuer"
 	AgonesGameServerNameLabel   = "agones.dev/gameserver"
@@ -67,6 +68,14 @@ func IsReady(gs *agonesv1.GameServer) bool {
 	}
 
 	return gs.Status.State == agonesv1.GameServerStateReady
+}
+
+func IsReadyOrAllocated(gs *agonesv1.GameServer) bool {
+	if gs == nil {
+		return false
+	}
+
+	return gs.Status.State == agonesv1.GameServerStateReady || gs.Status.State == agonesv1.GameServerStateAllocated
 }
 
 func GetIngressRoutingMode(gs *agonesv1.GameServer) IngressRoutingMode {

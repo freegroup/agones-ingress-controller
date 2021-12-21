@@ -1,16 +1,42 @@
 package reconcilers
 
 import (
-	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
 	"fmt"
+	"strconv"
+	"strings"
+
+	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
 	"github.com/Octops/gameserver-ingress-controller/pkg/gameserver"
 	"github.com/pkg/errors"
 	networkingv1 "k8s.io/api/networking/v1"
-	"strconv"
-	"strings"
 )
 
 type IngressOption func(gs *agonesv1.GameServer, ingress *networkingv1.Ingress) error
+
+func WithApiKeyAnnotation() IngressOption {
+	return func(gs *agonesv1.GameServer, ingress *networkingv1.Ingress) error {
+		annotations := ingress.Annotations
+		for k, v := range gs.Annotations {
+			if strings.HasPrefix(k, gameserver.AgonesAnnotationCustomPrefix) {
+				custom := strings.TrimPrefix(k, gameserver.AgonesAnnotationCustomPrefix)
+				if custom == "apikey" {
+					if strings.TrimSpace(v) == "" {
+						// lock the Ingress if the GameServer not Allocated and there is no APIKey for a consumer available
+						//
+						annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = "return 401;"
+					} else {
+						// Check that the caller has the APIKEY as HTTP "Authorization" header in place
+						//
+						annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = fmt.Sprintf("if ($http_authorization != \"ApiKey %s\") { return 401; }", v)
+					}
+				}
+			}
+		}
+
+		ingress.SetAnnotations(annotations)
+		return nil
+	}
+}
 
 func WithCustomAnnotations() IngressOption {
 	return func(gs *agonesv1.GameServer, ingress *networkingv1.Ingress) error {

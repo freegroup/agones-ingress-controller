@@ -7,7 +7,7 @@ TESTSET = .
 BENCHSET ?= .
 
 # version (defaults to short git hash)
-VERSION ?= $(shell git rev-parse --short HEAD)
+VERSION ?= $(shell uuidgen)
 
 # use correct sed for platform
 UNAME_S := $(shell uname -s)
@@ -34,9 +34,12 @@ TESTS    := $(shell find internal cmd -name '*.go' -type f -not -name '*.pb.go' 
 
 OCTOPS_BIN := bin/octops-controller
 
-IMAGE_REPO=octops/gameserver-ingress-controller
-DOCKER_IMAGE_TAG ?= octops/gameserver-ingress-controller:${VERSION}
-RELEASE_TAG=0.1.5
+ifndef DOCKER_REPOSITORY
+	DOCKER_REPOSITORY := cp-enablement.common.repositories.cloud.sap
+endif
+VERSION := $(shell uuidgen)
+PROJECT := com.sap.agones/ingress-controller
+IMAGE_NAME := $(DOCKER_REPOSITORY)/$(PROJECT):$(VERSION)
 
 default: clean build
 
@@ -88,33 +91,14 @@ vendor:
 	$(GO) mod vendor
 
 docker:
-	docker build -t $(DOCKER_IMAGE_TAG) .
+	docker build -t $(IMAGE_NAME) .
 
 push: docker
-	docker push $(DOCKER_IMAGE_TAG)
+	docker push $(IMAGE_NAME)
 
-latest: docker
-	docker tag $(DOCKER_IMAGE_TAG) $(IMAGE_REPO):latest
-	docker push $(IMAGE_REPO):latest
-
-release: latest
-	docker tag $(DOCKER_IMAGE_TAG) $(IMAGE_REPO):$(RELEASE_TAG)
-	docker push $(IMAGE_REPO):$(RELEASE_TAG)
-
-install: release
-	kubectl apply -f deploy/install.yaml
-
-up:
-	@echo Starting services
-	docker-compose up
-
-down:
-	@echo Stopping services
-	docker-compose down
-
-deploy-local:
-	./hack/push_k3s.sh
+install: push
+	@cat deploy/install.yaml | sed "s~<image-name>~$(IMAGE_NAME)~g"| kubectl apply -f -
 
 make run: docker
-	docker run -it --rm -v ${PWD}/.infrastructure/k3s.yaml:/home/octops/.kube/config \
+	docker run -it --rm -v ${PWD}/kubeconfig-cluster01.yaml:/home/octops/.kube/config \
 	octops/gameserver-ingress-controller:${VERSION} --kubeconfig=/home/octops/.kube/config

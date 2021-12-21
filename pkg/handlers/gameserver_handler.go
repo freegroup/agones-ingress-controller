@@ -2,6 +2,7 @@ package handlers
 
 import (
 	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
+	"agones.dev/agones/pkg/client/clientset/versioned"
 	"context"
 	"fmt"
 	"github.com/Octops/gameserver-ingress-controller/internal/runtime"
@@ -17,6 +18,7 @@ import (
 type GameSeverEventHandler struct {
 	logger            *logrus.Entry
 	client            *kubernetes.Clientset
+	agonesClient      *versioned.Clientset
 	serviceReconciler *reconcilers.ServiceReconciler
 	ingressReconciler *reconcilers.IngressReconciler
 }
@@ -27,9 +29,15 @@ func NewGameSeverEventHandler(config *rest.Config, recorder record.EventRecorder
 		runtime.Logger().WithError(err).Fatal("failed to create kubernetes client")
 	}
 
+	agonesClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		runtime.Logger().WithError(err).Fatal("Could not create the agones api clientset")
+	}
+
 	return &GameSeverEventHandler{
 		logger:            runtime.Logger().WithField("role", "event_handler"),
 		client:            client,
+		agonesClient:      agonesClient,
 		serviceReconciler: reconcilers.NewServiceReconciler(client, recorder),
 		ingressReconciler: reconcilers.NewIngressReconciler(client, recorder),
 	}
@@ -71,10 +79,9 @@ func (h *GameSeverEventHandler) Reconcile(gs *agonesv1.GameServer) error {
 		return nil
 	}
 
-	if gameserver.IsReady(gs) == false {
-		msg := fmt.Sprintf("gameserver %s/%s not ready", gs.Namespace, gs.Name)
+	if gameserver.IsReadyOrAllocated(gs) == false {
+		msg := fmt.Sprintf("gameserver %s/%s not ready or allocated", gs.Namespace, gs.Name)
 		h.logger.Info(msg)
-
 		return nil
 	}
 
@@ -89,5 +96,20 @@ func (h *GameSeverEventHandler) Reconcile(gs *agonesv1.GameServer) error {
 		return errors.Wrapf(err, "failed to reconcile ingress %s/%s", gs.Namespace, gs.Name)
 	}
 
+
+   /*
+	newGS := gs.DeepCopy()
+	ann := newGS.ObjectMeta.Annotations
+	if ann == nil {
+		ann = make(map[string]string)
+	}
+	ann["ingress"] = ing.Spec.Rules[0].Host + ing.Spec.Rules[0].HTTP.Paths[0].Path
+	gs.SetAnnotations(ann)
+	newGS, err = h.agonesClient.AgonesV1().GameServers(gs.Namespace).Update(ctx, gs, metav1.UpdateOptions{})
+
+	if err != nil {
+		return err
+	}
+	*/
 	return nil
 }

@@ -30,10 +30,10 @@ rules:
     verbs: [ "list", "get", "create", "delete", "watch" ]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
-    verbs: ["list", "get", "create", "delete", "watch"]
+    verbs: ["list", "get", "create", "delete", "watch","update"]
   - apiGroups: ["agones.dev"]
     resources: ["gameservers","fleets"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch","update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -68,8 +68,10 @@ spec:
         app: octops-ingress-controller
     spec:
       serviceAccountName: octops
+      imagePullSecrets:
+          - name: artifactory
       containers:
-        - image: octops/gameserver-ingress-controller:latest # Tag latest is not ideal, check the latest released tag and replace
+        - image: <image-name>
           name: controller
           ports:
             - containerPort: 30235
