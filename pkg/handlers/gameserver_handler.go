@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
-	"agones.dev/agones/pkg/client/clientset/versioned"
 	"context"
 	"fmt"
+
+	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
+	"agones.dev/agones/pkg/client/clientset/versioned"
 	"github.com/Octops/gameserver-ingress-controller/internal/runtime"
 	"github.com/Octops/gameserver-ingress-controller/pkg/gameserver"
 	"github.com/Octops/gameserver-ingress-controller/pkg/reconcilers"
@@ -96,20 +97,5 @@ func (h *GameSeverEventHandler) Reconcile(gs *agonesv1.GameServer) error {
 		return errors.Wrapf(err, "failed to reconcile ingress %s/%s", gs.Namespace, gs.Name)
 	}
 
-
-   /*
-	newGS := gs.DeepCopy()
-	ann := newGS.ObjectMeta.Annotations
-	if ann == nil {
-		ann = make(map[string]string)
-	}
-	ann["ingress"] = ing.Spec.Rules[0].Host + ing.Spec.Rules[0].HTTP.Paths[0].Path
-	gs.SetAnnotations(ann)
-	newGS, err = h.agonesClient.AgonesV1().GameServers(gs.Namespace).Update(ctx, gs, metav1.UpdateOptions{})
-
-	if err != nil {
-		return err
-	}
-	*/
 	return nil
 }
